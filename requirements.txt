@@ -1,0 +1,5 @@
+numpy<1.22,>=1.18
+pyglet
+moviepy
+matplotlib
+-e git+https://github.com/kandouss/marlgrid#egg=master
