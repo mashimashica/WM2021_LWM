@@ -1,5 +1,4 @@
 from marlgrid.utils.video import GridRecorder
-import gym
 
 from envs import create_ChoosePathGridDefaultEnv
 

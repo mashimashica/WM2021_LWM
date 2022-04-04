@@ -1,10 +1,9 @@
 import numpy as np
 import marlgrid
-
 from marlgrid.rendering import InteractivePlayerWindow
 from marlgrid.agents import GridAgentInterface
+
 from envs import create_ChoosePathGridDefaultEnv
-import gym
 
 class HumanPlayer:
     def __init__(self):

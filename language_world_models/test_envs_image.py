@@ -1,9 +1,10 @@
 '''
 ゲーム環境の初期状態の可視化
 '''
-from envs import create_ChoosePathGridDefaultEnv
 import matplotlib.pyplot as plt
 import numpy as np
+
+from envs import create_ChoosePathGridDefaultEnv
 
 
 # 環境の初期化
