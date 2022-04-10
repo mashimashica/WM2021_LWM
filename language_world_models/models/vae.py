@@ -87,4 +87,4 @@ class VAE(nn.Module):
         # 再構成誤差
         recon_loss = F.mse_loss(recon_x, x, reduction='sum') / x.shape[0]
         # recon_loss = F.binary_cross_entropy(recon_x, x)
-        return KL_loss, recon_loss
+        return KL_loss+recon_loss, KL_loss, recon_loss
