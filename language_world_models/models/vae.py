@@ -58,9 +58,8 @@ class Decoder(nn.Module):
         x = x.unsqueeze(-1).unsqueeze(-1) # [B_SIZE, 512, 1, 1]
         x = F.relu(self.deconv1(x)) # [B_SIZE, 128, 5, 5]
         x = F.relu(self.deconv2(x)) # [B_SIZE, 64, 14, 14]
-        x = F.relu(self.deconv3(x)) # [B_SIZE, 3, 32, 32]
-        recon_x = torch.sigmoid(x)
-        return recon_x
+        recon = F.sigmoid(self.deconv3(x)) # [B_SIZE, 3, 32, 32]
+        return recon
 
 
 class VAE(nn.Module):
@@ -83,9 +82,9 @@ class VAE(nn.Module):
 
     def loss(self, x, recon_x, z_mean, z_logstd):
         # KLダイバージェンス
-        KL_loss = -0.5 *  torch.mean(torch.sum(1 + 2*z_logstd - z_mean**2 - (2*z_logstd).exp(), dim=1))
+        KL_loss = -0.5 * torch.sum(1 + 2*z_logstd - z_mean**2 - (2*z_logstd).exp()) / x.shape[0]
 
         # 再構成誤差
-        recon_loss = F.mse_loss(recon_x, x)
+        recon_loss = F.mse_loss(recon_x, x, reduction='sum') / x.shape[0]
         # recon_loss = F.binary_cross_entropy(recon_x, x)
         return KL_loss, recon_loss

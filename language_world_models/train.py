@@ -110,7 +110,7 @@ def train(args):
 
     model_vae = VAE(64).to(device)
     print(model_vae)
-    optimizer = optim.Adam(model_vae.parameters(), lr=0.001)
+    optimizer = optim.Adam(model_vae.parameters())
     test(args, env, model_vae)
 
     losses = []
@@ -150,8 +150,7 @@ def train(args):
                 model_vae.zero_grad()
                 
                 recon_x, z_mean, z_logstd = model_vae(x)
-
-                KL_loss, reconstruction_loss = model_vae.loss(x, recon_x, z_mean, z_logstd)
+                KL_loss, recon_loss = model_vae.loss(x, recon_x, z_mean, z_logstd)
 
                 # エビデンス下界の最大化のためマイナス付きの各項の値を最小化するようにパラメータを更新
                 loss = KL_loss + reconstruction_loss
@@ -167,7 +166,7 @@ def train(args):
         
         if (i_episode+1) % args.print_freq == 0:
             print('episode: %d / %d (%d sec)    Train Lower Bound: %lf  (KL loss : %lf,  Reconstruction loss : %lf)' %
-                  (i_episode+1, args.num_episodes, time.time()-last_time, np.average(losses),  KL_loss, reconstruction_loss))
+                  (i_episode+1, args.num_episodes, time.time()-last_time, np.average(losses),  KL_loss, recon_loss))
             last_time = time.time()
             losses = []
 
