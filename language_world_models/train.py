@@ -23,7 +23,7 @@ def test(args, env, model_vae, i_episode):
     
     # VAEのテスト
     x = torch.stack(obs_listener_ep).to(device)
-    recon_x, z_mean, z_logstd = model_vae(x)
+    _, _, _, recon_x = model_vae(x)
 
     # 入力画像の表示
     fig = plt.figure(figsize=(20,10))
@@ -43,6 +43,17 @@ def test(args, env, model_vae, i_episode):
     fig.savefig(result_vae_path)
 
     plt.close(fig)
+
+# VAE の更新
+def train_vae_step(model_vae, optimizer_vae, x):
+    model_vae.train()
+    model_vae.zero_grad()
+
+    _, z_mean, z_logstd, recon_x = model_vae(x)
+    loss_vae, KL_loss, recon_loss = model_vae.loss(x, recon_x, z_mean, z_logstd)
+    loss_vae.backward()
+    optimizer_vae.step()
+    return loss_vae, KL_loss, recon_loss
 
 
 def train(args):
@@ -79,14 +90,8 @@ def train(args):
         # バッチサイズ分のデータが集まったらパラメータの更新
         if len(obs_listener_list) >= args.batch_size:
             # VAE の更新
-            model_vae.train()
-            model_vae.zero_grad()
-
             x = torch.stack(obs_listener_list).to(device)
-            recon_x, z_mean, z_logstd = model_vae(x)
-            loss_vae, KL_loss, recon_loss = model_vae.loss(x, recon_x, z_mean, z_logstd)
-            loss_vae.backward()
-            optimizer_vae.step()
+            loss_vae, KL_loss, recon_loss = train_vae_step(model_vae, optimizer_vae, x)
 
             losses_vae.append(loss_vae.cpu().detach().numpy())
         

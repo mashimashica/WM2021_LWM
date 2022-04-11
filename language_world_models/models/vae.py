@@ -78,7 +78,7 @@ class VAE(nn.Module):
         z = self.sample_z(z_mean, z_logstd)
 
         recon_x = self.decoder(z)
-        return recon_x, z_mean, z_logstd
+        return z, z_mean, z_logstd, recon_x
 
     def loss(self, x, recon_x, z_mean, z_logstd):
         # KLダイバージェンス
