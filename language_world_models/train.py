@@ -55,6 +55,17 @@ def train_vae_step(model_vae, optimizer_vae, x):
     optimizer_vae.step()
     return loss_vae, KL_loss, recon_loss
 
+# LBF の更新
+def train_lbf_step(model_lbf, optimizer_lbf, m, z, real_z_eps):
+    model_lbf.train()
+    model_lbf.zero_grad()
+    
+    pred_zs, beta, beta_mean, beta_logstd = model_lbf(m, z)
+    loss_lbf, KL_loss, pred_loss = model_lbf.loss(correct_zs, predict_zs, beta_mean, beta_logstd)
+    loss_lbf.backward()
+    optimizer_lbf.step()
+    return loss_lbf, KL_loss, pred_loss
+
 
 def train(args):
     # Set random seed
@@ -72,6 +83,12 @@ def train(args):
     model_vae = VAE(args.z_dim).to(device)
     print(model_vae)
     optimizer_vae = optim.Adam(model_vae.parameters())
+
+    # LBFの定義
+    model_lbf = LBF(args.beta_dim, args.m_dim, args.z_dim, args.pred_z_steps).to(device)
+    print(model_lbf)
+    optimizer_lbf = optim.Adam(model_lbf.parameters())
+
 
     test(args, env, model_vae, -1)
 
