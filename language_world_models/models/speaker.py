@@ -114,11 +114,11 @@ class Decoder(nn.Module):
         return recon
 
 
-class VAE(nn.Module):
-    def __init__(self, z_dim):
-        super(VAE, self).__init__()
-        self.encoder = Encoder(z_dim)
-        self.decoder = Decoder(z_dim)
+class Speaker(nn.Module):
+    def __init__(self, m_dim):
+        super(Speaker, self).__init__()
+        self.encoder = Encoder(m_dim)
+        self.decoder = Decoder(m_dim)
 
     def forward(self, x):
         # z_mean, z_logstd = self.encoder(x)
@@ -131,7 +131,7 @@ class VAE(nn.Module):
 
 
     def loss(self, x, recon_x, p_soft):
-#入力サイズ p_soft : [B_SIZE, m_dim]
+        #入力サイズ p_soft : [B_SIZE, m_dim]
         # 再構成誤差
         MSE = F.mse_loss(recon_x, x, reduction='sum')/x.shape[0]
         p_soft_mean = p_soft.mean(dim=0) #(m_dim)

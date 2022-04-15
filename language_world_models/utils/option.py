@@ -7,6 +7,7 @@ def parse_args():
     # Core training parameters
     parser.add_argument("--lr", type=float, default=5e-3, help="learning rate for Adam optimizer")
     parser.add_argument("--batch_size", type=int, default=64, help="batch size")
+    parser.add_argument("--m_dim", type=int, default=64, help="m dim")
     parser.add_argument("--z_dim", type=int, default=64, help="z dim")
     parser.add_argument("--num_episodes", type=int, default=200000, help="number of episodes")
     # Checkpointing, logging and saving

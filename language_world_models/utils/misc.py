@@ -3,7 +3,7 @@ from PIL import Image
 from torchvision import transforms
 
 transform_speaker = transforms.Compose([
-    transforms.Resize(128),
+    transforms.Resize(32),
     # [0, 255] -> [0.0, 1.0]; (H, W, C) -> (C, H, W)
     transforms.ToTensor(), 
 ])
