@@ -10,7 +10,7 @@ import torchvision.utils as vutils
 
 from envs import create_ChoosePathGridDefaultEnv
 from models.vae import VAE 
-from utils import option, util
+from utils import misc, option
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -44,7 +44,7 @@ def test_vae(args, model_vae, i_episode, x):
 @torch.no_grad()
 def test(args, env, model_vae, i_episode):
     # 1エピソードの実行
-    obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = util.play_one_episode(env)
+    obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = misc.play_one_episode(env)
     
     # VAEのテスト
     x = torch.stack(obs_listener_ep).to(device)
@@ -61,7 +61,7 @@ def train_batch_vae(model_vae, optimizer_vae, x):
     vae_loss.backward()
     optimizer_vae.step()
     
-    return vae_loss.cpu().detach().numpy(), kl_loss.cpu().detach().numpy(), recon_loss.cpu().detach().numpy()
+    return vae_loss.item(), kl_loss.item(), recon_loss.item()
 
 
 def train(args):
@@ -88,7 +88,7 @@ def train(args):
     # 訓練ループ
     for i_episode in range(args.num_episodes):
         # 1エピソードの実行
-        obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = util.play_one_episode(env)
+        obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = misc.play_one_episode(env)
 
         obs_listener_list.extend(obs_listener_ep)
         obs_speaker_list.extend(obs_speaker_ep)
@@ -110,7 +110,6 @@ def train(args):
             last_time = time.time()
             
             # VAE について表示
-            print(losses['vae']['loss'])
             print('\tVAE : Train Lower Bound: %lf  (KL loss : %lf,  Reconstruction loss : %lf)' %
                   (np.average(losses['vae']['loss']),  np.average(losses['vae']['kl_loss']), np.average(losses['vae']['recon_loss'])))
             losses['vae']['loss'].clear()
