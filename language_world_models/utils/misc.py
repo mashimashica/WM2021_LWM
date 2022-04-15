@@ -25,6 +25,17 @@ def get_obs_listener(obs_agent):
     return obs_listener
 
 # 1エピソードの実行
+def get_many_head_frame(env, num):
+    obs_speaker_list = []
+
+    for i in range(num):
+        obs_agent = env.reset()
+        obs_speaker = get_obs_speaker(env)
+        obs_speaker_list.append(obs_speaker)
+ 
+    return obs_speaker_list
+
+# 1エピソードの実行
 def play_one_episode(env, policy=None):
     obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = [], [], [], []
 
