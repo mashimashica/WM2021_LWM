@@ -55,13 +55,20 @@ def train_vae_step(model_vae, optimizer_vae, x):
     optimizer_vae.step()
     return loss_vae, KL_loss, recon_loss
 
-# LBF の更新
-def train_lbf_step(model_lbf, optimizer_lbf, m, z, real_z_eps):
+"""LBF の更新
+m_eps   : [EPS_NUM, SEQ_LEN, m_dim]
+z_eps   : [EPS_NUM, SEQ_LEN, z_dim]
+real_zs : [EPS_NUM, SEQ_LEN, pred_z_steps, z_dim]
+pred_zs : [EPS_NUM, SEQ_LEN, pred_z_steps, z_dim]
+"""
+def train_lbf_step(model_lbf, optimizer_lbf, input_seq_len, m_eps, z_eps):
     model_lbf.train()
     model_lbf.zero_grad()
-    
-    pred_zs, beta, beta_mean, beta_logstd = model_lbf(m, z)
-    loss_lbf, KL_loss, pred_loss = model_lbf.loss(correct_zs, predict_zs, beta_mean, beta_logstd)
+     
+    pred_zs, beta, beta_mean, beta_logstd = model_lbf(m_eps, z_eps)
+
+    real_zs[i] = z_eps[:, i:i+pred_z_steps]
+    loss_lbf, KL_loss, pred_loss = model_lbf.loss(correct_zs, pred_zs, beta_mean, beta_logstd)
     loss_lbf.backward()
     optimizer_lbf.step()
     return loss_lbf, KL_loss, pred_loss
@@ -99,10 +106,11 @@ def train(args):
         # 1エピソードの実行
         obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = util.play_one_episode(env)
 
+        obs_listener_eps.append(obs_listener_ep)
+        obs_speaker_eps.append(obs_speaker_ep)
+
         obs_listener_list.extend(obs_listener_ep)
         obs_speaker_list.extend(obs_speaker_ep)
-        reward_list.extend(reward_ep)
-        done_list.extend(done_ep)
 
         # バッチサイズ分のデータが集まったらパラメータの更新
         if len(obs_listener_list) >= args.batch_size:
@@ -114,8 +122,33 @@ def train(args):
         
             del obs_listener_list[:args.batch_size]
             del obs_speaker_list[:args.batch_size]
-            del reward_list[:args.batch_size] # TODO
-            del done_list[:args.batch_size]   # TODO
+
+
+         # 一定数のエピソード分のデータが集まったらパラメータの更新
+        if len(obs_listener_eps) >= args.batch_episode:
+            # LBF の更新
+            model_vae.eval()
+            model_speaker.eval()
+
+            m_eps = None
+            z_eps = None
+            with torch.no_grad:
+                for obs_l_ep in obs_listener_eps:
+                    obs_l_ep = torch.stack(obs_l_ep).to(device)
+                    z_ep, _, _, _ = model_vae(obs_l_ep)
+                    # TODO z_epの足りない部分をz_ep[-1]で補完する
+                    if len(z_ep) < seq_len:
+                        z_ep.extend([z_ep[-1]] * (seq_len- len(z_ep)))
+                    z_eps.append(z_ep)
+
+            m_eps = torch.stack(m_eps).to(device)
+            z_eps = torch.stack(z_eps).to(device)
+            loss_lbf, KL_loss, pred_loss = train_lbf_step(model_lbf, optimizer_lbf, m_eps, z_eps)
+            
+            losses_lbf.append(loss_lbf.cpu().detach().numpy())
+        
+            del obs_listener_eps
+            del obs_speaker_eps
         
         if (i_episode+1) % args.print_freq == 0:
             print('episode: %d / %d (%d sec) \tVAE : Train Lower Bound: %lf  (KL loss : %lf,  Reconstruction loss : %lf)' %
