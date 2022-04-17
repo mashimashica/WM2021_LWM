@@ -10,7 +10,6 @@ import torchvision.utils as vutils
 
 from envs import create_ChoosePathGridDefaultEnv
 from models.speaker import Speaker
-from models.vae import VAE
 from utils import misc, option
 
 
@@ -78,23 +77,35 @@ def train(args):
 
     test(args, env, model_speaker, -1)
 
+    
+    obs_speaker_list = misc.get_many_head_frame(env, 10240)
+    train_speaker_dataset = torch.utils.data.TensorDataset(torch.stack(obs_speaker_list))
+    
+    dataloader = torch.utils.data.DataLoader(
+        train_speaker_dataset, 
+        batch_size=args.batch_size, 
+        shuffle=True,
+        num_workers=2, 
+        drop_last=True,
+        pin_memory=True
+    )
+
     last_time = time.time()
 
     # 訓練ループ
-    for i_episode in range(args.num_episodes):
-        # 1エピソードの実行
-        obs_speaker_list = misc.get_many_head_frame(env, args.batch_size)
+    for i_epoch in range(args.num_epochs):
         
         # Speaker の更新
-        x = torch.stack(obs_speaker_list[:args.batch_size]).to(device)
-        loss, n_entropy, recon_loss = train_batch_speaker(model_speaker, optimizer_speaker, x)
-        losses['speaker']['loss'].append(loss)
-        losses['speaker']['n_entropy'].append(n_entropy)
-        losses['speaker']['recon_loss'].append(recon_loss)
+        for batch in dataloader:
+            batch = batch[0].to(device)
+            loss, n_entropy, recon_loss = train_batch_speaker(model_speaker, optimizer_speaker, batch)
+            losses['speaker']['loss'].append(loss)
+            losses['speaker']['n_entropy'].append(n_entropy)
+            losses['speaker']['recon_loss'].append(recon_loss)
   
         
-        if (i_episode+1) % args.print_freq == 0:
-            print('episode: %d / %d (%d sec)' % (i_episode+1, args.num_episodes, time.time()-last_time))
+        if (i_epoch+1) % args.print_freq == 0:
+            print('epoch: %d / %d (%d sec)' % (i_epoch+1, args.num_epochs, time.time()-last_time))
             last_time = time.time()
              
             # Speaker について表示
@@ -104,12 +115,12 @@ def train(args):
             losses['speaker']['n_entropy'].clear()
             losses['speaker']['recon_loss'].clear()
 
-        if (i_episode+1) % args.save_freq == 0:
-            model_speaker_path = os.path.join(args.checkpoints_dir, "model_speaker_%06d.pth" % (i_episode+1))
+        if (i_epoch+1) % args.save_freq == 0:
+            model_speaker_path = os.path.join(args.checkpoints_dir, "model_speaker_%06d.pth" % (i_epoch+1))
             torch.save(model_speaker.state_dict(), model_speaker_path)
 
-        if (i_episode+1) % args.test_freq == 0:
-            test(args, env, model_speaker, i_episode)
+        if (i_epoch+1) % args.test_freq == 0:
+            test(args, env, model_speaker, i_epoch)
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-def gumbel_softmax(logits: torch.Tensor, tau: float = 1, hard: bool = False, eps: float = 1e-10, dim: int = -1) -> torch.Tensor:
+def gumbel_softmax(logits: torch.Tensor, tau: float = 1, dim: int = -1) -> torch.Tensor:
     r"""
     Samples from the Gumbel-Softmax distribution (`Link 1`_  `Link 2`_) and optionally discretizes.
     Args:
@@ -40,8 +40,6 @@ def gumbel_softmax(logits: torch.Tensor, tau: float = 1, hard: bool = False, eps
     """
     # if has_torch_function_unary(logits):
     #     return handle_torch_function(gumbel_softmax, (logits,), logits, tau=tau, hard=hard, eps=eps, dim=dim)
-    # if eps != 1e-10:
-    #     warnings.warn("`eps` parameter is deprecated and has no effect.")
 
     gumbels = (
         -torch.empty_like(logits, memory_format=torch.legacy_contiguous_format).exponential_().log()
@@ -52,7 +50,7 @@ def gumbel_softmax(logits: torch.Tensor, tau: float = 1, hard: bool = False, eps
     # Straight through.
     index = y_soft.max(dim, keepdim=True)[1]
     y_hard = torch.zeros_like(logits, memory_format=torch.legacy_contiguous_format).scatter_(dim, index, 1.0)
-    ret = y_hard - y_soft.detach() + y_soft
+    y_hard = y_hard - y_soft.detach() + y_soft
 
     return y_soft, y_hard
 
@@ -63,27 +61,21 @@ Encoder
 """
 class Encoder(nn.Module):
     """ VAE encoder """
-    def __init__(self, z_dim):
+    def __init__(self, m_dim):
         super(Encoder, self).__init__()
-        self.z_dim = z_dim
+        self.m_dim = m_dim
 
-        self.conv1 = nn.Conv2d(3, 32, 4, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
-        self.conv3 = nn.Conv2d(64, 128, 4, stride=2)
-
-        #順伝播
-        self.fc = nn.Linear(2*2*128, z_dim)
-        
+        self.fc1 = nn.Linear(3*11*11, 1024)
+        self.fc2 = nn.Linear(1024, m_dim)
 
     def forward(self, x):
-        # x : [B_SIZE, 3, 32, 32]
-        x = F.relu(self.conv1(x)) # [B_SIZE, 32, 15, 15]
-        x = F.relu(self.conv2(x)) # [B_SIZE, 64, 6, 6] 
-        x = F.relu(self.conv3(x)) # [B_SIZE, 128, 2, 2]  
-        x = x.view(x.size(0), -1) # [B_SIZE, 512]
-        
-        x = self.fc(x)
-        p_soft, m = gumbel_softmax(x, tau=10, hard=False)
+        # x : [B_SIZE, 3, 11, 11]
+        x = x.view(x.size(0), -1) # [B_SIZE, 363]
+        x = F.relu(self.fc1(x)) # [B_SIZE, 1024]
+        x = F.relu(self.fc2(x)) # [B_SIZE, m_dim]  
+        p_soft, m = gumbel_softmax(x, tau=1)
+        p_soft = x
+        m = x
 
         return p_soft, m
 
@@ -95,24 +87,23 @@ Decoder
 """
 class Decoder(nn.Module):
     """ VAE decoder """
-    def __init__(self, z_dim):
+    def __init__(self, m_dim):
         super(Decoder, self).__init__()
-        self.z_dim = z_dim
+        self.m_dim = m_dim
 
-        self.fc1 = nn.Linear(z_dim, 256)
-        self.deconv1 = nn.ConvTranspose2d(256, 128, 5, stride=2)
-        self.deconv2 = nn.ConvTranspose2d(128, 64, 6, stride=2)
-        self.deconv3 = nn.ConvTranspose2d(64, 3, 6, stride=2)
+        self.fc1 = nn.Linear(m_dim, 1024)
+        self.fc2 = nn.Linear(1024, 3*11*11)
 
     def forward(self, x):
-        # x : [B_SIZE, z_dim]
-        x = F.relu(self.fc1(x)) # [B_SIZE, 512]
-        x = x.unsqueeze(-1).unsqueeze(-1) # [B_SIZE, 512, 1, 1]
-        x = F.relu(self.deconv1(x)) # [B_SIZE, 128, 5, 5]
-        x = F.relu(self.deconv2(x)) # [B_SIZE, 64, 14, 14]
-        recon = F.sigmoid(self.deconv3(x)) # [B_SIZE, 3, 32, 32]
+        # x : [B_SIZE, m_dim]
+        x = F.relu(self.fc1(x)) # [B_SIZE, 1024]
+        x = torch.sigmoid(self.fc2(x)) # [B_SIZE, 3*11*11]
+        recon = x.view(x.size(0), 3, 11, 11) # [B_SIZE, 3, 11, 11]
         return recon
 
+# torch.log(0)によるnanを防ぐ
+def torch_log(x):
+    return torch.log(torch.clamp(x, min=1e-10))
 
 class Speaker(nn.Module):
     def __init__(self, m_dim):
@@ -121,12 +112,11 @@ class Speaker(nn.Module):
         self.decoder = Decoder(m_dim)
 
     def forward(self, x):
-        # z_mean, z_logstd = self.encoder(x)
-        # z = self.sample_z(z_mean, z_logstd)
         p_soft, m = self.encoder(x)
+        self.p_soft = p_soft 
+        self.m = m
 
         recon_x = self.decoder(m)
-        # return recon_x, z_mean, z_logstd
         return recon_x, p_soft
 
 
@@ -134,11 +124,11 @@ class Speaker(nn.Module):
         #入力サイズ p_soft : [B_SIZE, m_dim]
         # 再構成誤差
         MSE = F.mse_loss(recon_x, x, reduction='sum')/x.shape[0]
-        p_soft_mean = p_soft.mean(dim=0) #(m_dim)
+        p_soft_mean = p_soft.mean(dim=0) # (m_dim)
         # print(p_soft.shape)
         # print(p_soft_mean.shape)
-        p = (p_soft_mean * p_soft_mean.log()).sum()
-        CC = p + MSE
+        n_entropy = (p_soft_mean * torch_log(p_soft_mean)).sum()
+        CC = n_entropy + MSE
         # print(CC)
         # recon_loss = F.binary_cross_entropy(recon_x, x)
-        return CC, p, MSE
+        return CC, n_entropy, MSE
