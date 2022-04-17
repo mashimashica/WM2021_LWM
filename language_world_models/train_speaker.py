@@ -78,7 +78,7 @@ def train(args):
     test(args, env, model_speaker, -1)
 
     
-    obs_speaker_list = misc.get_many_head_frame(env, 10240)
+    obs_speaker_list = misc.get_many_head_frame(env, args.num_data)
     train_speaker_dataset = torch.utils.data.TensorDataset(torch.stack(obs_speaker_list))
     
     dataloader = torch.utils.data.DataLoader(

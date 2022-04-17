@@ -3,7 +3,7 @@ from PIL import Image
 from torchvision import transforms
 
 transform_speaker = transforms.Compose([
-    transforms.Resize(32),
+    transforms.Resize(11),
     # [0, 255] -> [0.0, 1.0]; (H, W, C) -> (C, H, W)
     transforms.ToTensor(), 
 ])
@@ -15,7 +15,7 @@ transform_listener = transforms.Compose([
 ])
 
 def get_obs_speaker(env):
-    obs_speaker = env.grid.render(tile_size=11).astype(np.uint8)
+    obs_speaker = env.grid.render(tile_size=1).astype(np.uint8)
     obs_speaker = transform_speaker(Image.fromarray(obs_speaker))
     return obs_speaker
 
@@ -36,7 +36,7 @@ def get_many_head_frame(env, num):
     return obs_speaker_list
 
 # 1エピソードの実行
-def play_one_episode(env, policy=None):
+def play_one_episode(env, max_steps=30, policy=None):
     obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = [], [], [], []
 
     obs_agent = env.reset()
