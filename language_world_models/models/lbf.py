@@ -12,20 +12,22 @@ Encoder
 """
 class BetaEncoder(nn.Module):
     """ LBF encoder """
-    def __init__(self, z_dim):
-        super(Encoder, self).__init__()
+    def __init__(self, beta_dim, m_dim, z_dim):
+        super(BetaEncoder, self).__init__()
         self.z_dim = z_dim
         self.rnn_hidden_size = 128
 
-        self.rnn = nn.RNN(m_dim+z_dim, self.rnn_hidden_size, 1, bacth_first=True)
+        self.rnn = nn.RNN(m_dim+z_dim, self.rnn_hidden_size, 1, batch_first=True)
         self.fc1 = nn.Linear(self.rnn_hidden_size, 1024)
         self.fc_mean = nn.Linear(1024, beta_dim)
         self.fc_logstd = nn.Linear(1024, beta_dim)
 
     def forward(self, m_seq, z_seq):
-        # [B_SIZE, SEQ_LEN, m_dim+z_dim]
-        x = F.relu(self.fc1(torch.cat([m, z], dim=1))
-        x = F.relu(self.fc2(x)) 
+        # m_seq : (B_SIZE, SEQ_LEN, m_dim)
+        # z_seq : (B_SIZE, SEQ_LEN, z_dim)
+        x = torch.cat([m_seq, z_seq], dim=2) # (B_SIZE, SEQ_LEN, m_zim+z_dim)
+        x, h_rnn = self.rnn(x)
+        x = F.relu(self.fc1(x))
 
         mean = self.fc_mean(x)
         logstd = self.fc_logstd(x)
@@ -41,7 +43,7 @@ Decoder
 class ZSeqDecoder(nn.Module):
     """ LBF decoder """
     def __init__(self, beta_dim, z_dim, pred_z_steps):
-        super(Decoder, self).__init__()
+        super(ZSeqDecoder, self).__init__()
         self.beta_dim = beta_dim
         self.z_dim = z_dim
         self.pred_z_steps = pred_z_steps
@@ -52,9 +54,9 @@ class ZSeqDecoder(nn.Module):
     def forward(self, beta):
         # [B_SIZE, SEQ_LEN, beta_dim]
         x = F.relu(self.fc1(beta)) # [B_SIZE, SEQ_LEN, 1024]
-        prediction = self.fc2(x)   # [B_SIZE, SEQ_LEN, pred_z_steps*z_dim]  最終層は活性化関数を適用しない
-    `   prediction = prediction.view(-1, -1, self.pred_z_steps, self.z_dim) # [B_SIZE, SEQ_LEN, pred_z_steps, z_dim]
-        return prediction
+        x = self.fc2(x)   # [B_SIZE, SEQ_LEN, pred_z_steps*z_dim]  最終層は活性化関数を適用しない
+        pred_z_seq = x.view(x.size(0), x.size(1), self.pred_z_steps, self.z_dim) # [B_SIZE, SEQ_LEN, pred_z_steps, z_dim]
+        return pred_z_seq
 
 
 class LBF(nn.Module):
@@ -69,16 +71,16 @@ class LBF(nn.Module):
         return mean + logstd.exp() * epsilon
 
     def forward(self, m_seq, z_seq):
-        beta_mean, beta_logstd = self.encoder(m, z)
+        beta_mean, beta_logstd = self.encoder(m_seq, z_seq)
         beta = self.sample_beta(beta_mean, beta_logstd)
 
         pred_zs = self.decoder(beta)
         return pred_zs, beta, beta_mean, beta_logstd
 
-    def loss(self, real_zs, pred_zs, beta_mean, beta_logstd):
+    def loss(self, target_z_seqs, pred_z_seqs, beta_mean, beta_logstd):
         # betaの分布と正規分布間のKLダイバージェンス
         KL_loss = -0.5 * torch.sum(1 + 2*beta_logstd - beta_mean**2 - (2*beta_logstd).exp()) / beta_mean.shape[0]
 
         # 予測誤差
-        pred_loss = F.mse_loss(real_zs, pred_zs, reduction='mean')
+        pred_loss = F.mse_loss(target_z_seqs, pred_z_seqs, reduction='mean')
         return KL_loss+pred_loss, KL_loss, pred_loss

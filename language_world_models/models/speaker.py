@@ -117,7 +117,7 @@ class Speaker(nn.Module):
         self.m = m
 
         recon_x = self.decoder(m)
-        return recon_x, p_soft
+        return m, p_soft, recon_x
 
 
     def loss(self, x, recon_x, p_soft):
