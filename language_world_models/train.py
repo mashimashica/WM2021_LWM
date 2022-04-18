@@ -21,14 +21,12 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 @torch.no_grad()
 def test(args, env, model_vae, model_speaker, i_episode):
-    # 1エピソードの実行
-    obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = misc.play_one_episode(env)
-     
     # Speaker のテスト
-    x = torch.stack(obs_speaker_ep).to(device)
+    x = torch.stack(misc.get_many_head_frame(env, 16)).to(device)
     test_speaker(args, model_speaker, i_episode, x)
 
     # VAE のテスト
+    obs_listener_ep, _, _, _ = misc.play_one_episode(env)
     x = torch.stack(obs_listener_ep).to(device)
     test_vae(args, model_vae, i_episode, x)
 
@@ -42,7 +40,7 @@ def generate_blf_train_data_from_obs(env, input_seq_len, pred_z_steps,
     for obs_s_ep in obs_speaker_eps:
         model_speaker.eval()
         if len(obs_s_ep) < input_seq_len:
-            # obs_s_epの足りない部分をobs_s_ep-1]で補完する
+            # obs_s_epの足りない部分をobs_s_ep[-1]で補完する
             obs_s_ep_ep.extend([obs_s_ep[-1]] * (input_seq_len- len(obs_s_ep)))
         obs_s_ep = torch.stack(obs_s_ep).to(device)
         m_ep, _, _ = model_speaker(obs_s_ep)

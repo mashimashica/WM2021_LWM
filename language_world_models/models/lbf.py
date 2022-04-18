@@ -74,13 +74,13 @@ class LBF(nn.Module):
         beta_mean, beta_logstd = self.encoder(m_seq, z_seq)
         beta = self.sample_beta(beta_mean, beta_logstd)
 
-        pred_zs = self.decoder(beta)
-        return pred_zs, beta, beta_mean, beta_logstd
+        pred_z_seq = self.decoder(beta)
+        return pred_z_seq, beta, beta_mean, beta_logstd
 
     def loss(self, target_z_seqs, pred_z_seqs, beta_mean, beta_logstd):
         # betaの分布と正規分布間のKLダイバージェンス
         KL_loss = -0.5 * torch.sum(1 + 2*beta_logstd - beta_mean**2 - (2*beta_logstd).exp()) / beta_mean.shape[0]
 
         # 予測誤差
-        pred_loss = F.mse_loss(target_z_seqs, pred_z_seqs, reduction='mean')
+        pred_loss = F.mse_loss(target_z_seqs, pred_z_seqs, reduction='sum') / (pred_z_seqs.size(0) * pred_z_seqs.size(1))
         return KL_loss+pred_loss, KL_loss, pred_loss
