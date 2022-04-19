@@ -52,7 +52,7 @@ def gumbel_softmax(logits: torch.Tensor, tau: float = 1, hard: bool = False, eps
     # Straight through.
     index = y_soft.max(dim, keepdim=True)[1]
     y_hard = torch.zeros_like(logits, memory_format=torch.legacy_contiguous_format).scatter_(dim, index, 1.0)
-    ret = y_hard - y_soft.detach() + y_soft
+    y_hard = y_hard - y_soft.detach() + y_soft
 
     return y_soft, y_hard
 
@@ -122,8 +122,6 @@ class Speaker(nn.Module):
         self.decoder = Decoder(m_dim)
 
     def forward(self, x):
-        # z_mean, z_logstd = self.encoder(x)
-        # z = self.sample_z(z_mean, z_logstd)
         p_soft, m = self.encoder(x)
 
         recon_x = self.decoder(m)
