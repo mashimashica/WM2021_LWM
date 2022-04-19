@@ -28,7 +28,7 @@ def test(args, env, model_speaker, model_vae, model_lbf, model_controller, i):
     test_speaker(args, model_speaker, i, x)
 
     # VAE のテスト
-    obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep = \
+    obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep, success = \
             misc.play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
     x = torch.stack(obs_listener_ep).to(device)
     test_vae(args, model_vae, i, x)
@@ -96,10 +96,12 @@ def train(args):
     obs_listener_list, obs_speaker_list = [], []
     m_eps, z_eps = [], []
 
-    logs = {'speaker' : {'loss':[], 'n_entropy':[], 'recon_loss':[]}, 
-              'vae' : {'loss':[], 'kl_loss':[], 'recon_loss':[]},
-              'lbf' : {'loss':[], 'kl_loss':[], 'pred_loss':[]},
-              'controller' : {'loss':[], 'a_loss':[], 'n_ent_a':[], 'value_loss':[], 'success':[]}}
+    logs = {'entire' : {'success':[]}, 
+            'speaker' : {'loss':[], 'n_entropy':[], 'recon_loss':[]}, 
+            'vae' : {'loss':[], 'kl_loss':[], 'recon_loss':[]},
+            'lbf' : {'loss':[], 'kl_loss':[], 'pred_loss':[]},
+            'controller' : {'loss':[], 'a_loss':[], 'n_ent_a':[], 'value_loss':[]}
+           } 
     tmp_logs = copy.deepcopy(logs)
 
 
@@ -109,23 +111,23 @@ def train(args):
     # Speakerの定義
     model_speaker = Speaker(args.m_dim).to(device)
     print(model_speaker)
-    optimizer_speaker = optim.Adam(model_speaker.parameters())
+    optimizer_speaker = optim.Adam(model_speaker.parameters(), args.lr)
    
     # Listenerの定義
     # VAEの定義
     model_vae = VAE(args.z_dim).to(device)
     print(model_vae)
-    optimizer_vae = optim.Adam(model_vae.parameters())
+    optimizer_vae = optim.Adam(model_vae.parameters(), args.lr)
 
     # LBFの定義
     model_lbf = LBF(args.beta_dim, args.m_dim, args.z_dim, args.pred_z_steps).to(device)
     print(model_lbf)
-    optimizer_lbf = optim.Adam(model_lbf.parameters())
+    optimizer_lbf = optim.Adam(model_lbf.parameters(), args.lr)
 
     # REINFORCEの定義
     model_controller = REINFORCE(args.z_dim, args.beta_dim, n_steps=1).to(device)
     print(model_controller)
-    optimizer_controller = optim.Adam(model_controller.parameters())
+    optimizer_controller = optim.Adam(model_controller.parameters(), args.lr)
 
 
     test(args, env, model_speaker, model_vae, model_lbf, model_controller, -1)
@@ -135,8 +137,10 @@ def train(args):
     # 訓練ループ
     for i_episode in range(args.num_episodes):
         # 1エピソードの実行
-        obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep = \
+        obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep, success = \
                 misc.play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
+
+        tmp_logs['entire']['success'].append(success)
 
         m_eps.append(m_ep)
         z_eps.append(z_ep)
@@ -182,10 +186,6 @@ def train(args):
         
         # Controller の更新
         act_ep = torch.stack(act_ep).to(device)
-        if reward_ep[-1] > 0:
-            tmp_logs['controller']['success'].append(1)
-        else:
-            tmp_logs['controller']['success'].append(0)
         reward_ep = torch.tensor(reward_ep).to(device)
         z_ep = torch.stack(z_ep).to(device)
         beta_ep = torch.stack(beta_ep).to(device)
@@ -209,6 +209,10 @@ def train(args):
                     logs[model][metric].append(np.average(v))
                     v.clear()
 
+            # 全体について表示
+            print('\tEntire : Success Rate %lf' %
+                  (logs['entire']['success'][-1]))
+
             # Speaker について表示
             print('\tSpeaker : Loss: %lf  (Negative entropy : %lf,  Reconstruction loss : %lf)' %
                   (logs['speaker']['loss'][-1], logs['speaker']['n_entropy'][-1], logs['speaker']['recon_loss'][-1]))
@@ -222,24 +226,23 @@ def train(args):
                   (logs['lbf']['loss'][-1], logs['lbf']['kl_loss'][-1], logs['lbf']['pred_loss'][-1]))
 
             # REINFORCE について表示
-            print('\tController : Loss: %lf  (Action loss : %lf,  Negative action entropy : %lf, Value loss : %lf), Success Rate %lf' %
+            print('\tController : Loss: %lf  (Action loss : %lf,  Negative action entropy : %lf, Value loss : %lf)' %
                   (logs['controller']['loss'][-1], \
-                   logs['controller']['a_loss'][-1], logs['controller']['n_ent_a'][-1], logs['controller']['value_loss'][-1], \
-                   logs['controller']['success'][-1]))
+                   logs['controller']['a_loss'][-1], logs['controller']['n_ent_a'][-1], logs['controller']['value_loss'][-1]))
 
 
 
         if (i_episode+1) % args.save_freq == 0:
-            model_speaker_path = os.path.join(args.checkpoints_dir, "model_speaker_%06d.pth" % (i_episode+1))
+            model_speaker_path = os.path.join(args.checkpoints_dir, "model_speaker.pth")
             torch.save(model_speaker.state_dict(), model_speaker_path)
 
-            model_vae_path = os.path.join(args.checkpoints_dir, "model_vae_%06d.pth" % (i_episode+1))
+            model_vae_path = os.path.join(args.checkpoints_dir, "model_vae.pth")
             torch.save(model_vae.state_dict(), model_vae_path)
 
-            model_lbf_path = os.path.join(args.checkpoints_dir, "model_lbf_%06d.pth" % (i_episode+1))
+            model_lbf_path = os.path.join(args.checkpoints_dir, "model_lbf.pth")
             torch.save(model_lbf.state_dict(), model_lbf_path)
 
-            model_controller_path = os.path.join(args.checkpoints_dir, "model_controller_%06d.pth" % (i_episode+1))
+            model_controller_path = os.path.join(args.checkpoints_dir, "model_controller.pth")
             torch.save(model_controller.state_dict(), model_controller_path)
 
             logs_path = os.path.join(args.results_dir, "logs.npy")

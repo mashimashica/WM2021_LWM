@@ -82,6 +82,7 @@ def _encode_obs(env, model_speaker, model_vae, model_lbf, obs_agent):
 def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller):
     obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep = \
             [], [], [], [], [], [], []
+    success = 0
 
     obs_agent = env.reset()
     obs_listener, obs_speaker, m, z, beta = \
@@ -92,6 +93,9 @@ def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
         # ゲーム環境のステップ実行
         act = model_controller.act(z.unsqueeze(0), beta.unsqueeze(0))
         obs_agent, reward, done, _ = env.step(act)
+
+        if reward > 0:
+            success = 1
 
         # 観測のエンコード
         obs_listener, obs_speaker, m, z, beta = \
@@ -105,7 +109,7 @@ def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
         z_ep.append(z)
         beta_ep.append(beta)
  
-    return obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep
+    return obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep, success
 
 
 # 複数エピソードの実行
