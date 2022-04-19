@@ -8,7 +8,7 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=5e-3, help="learning rate for Adam optimizer")
     parser.add_argument("--batch_episode", type=int, default=4, help="number of episode per batch")
     parser.add_argument("--batch_size", type=int, default=64, help="batch size")
-    parser.add_argument("--beta_dim", type=int, default=16, help="beta dim")
+    parser.add_argument("--beta_dim", type=int, default=64, help="beta dim")
     parser.add_argument("--m_dim", type=int, default=64, help="m dim")
     parser.add_argument("--z_dim", type=int, default=64, help="z dim")
     parser.add_argument("--pred_z_steps", type=int, default=10, help="z dim")
