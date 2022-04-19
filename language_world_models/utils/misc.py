@@ -9,7 +9,7 @@ from torchvision import transforms
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 transform_speaker = transforms.Compose([
-    transforms.Resize(11),
+    transforms.Resize(32),
     # [0, 255] -> [0.0, 1.0]; (H, W, C) -> (C, H, W)
     transforms.ToTensor(), 
 ])
