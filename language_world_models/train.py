@@ -190,18 +190,17 @@ def train(args):
             z_eps.clear()
         
         # Controller の更新
-        if i_episode > args.train_encoder_episodes:
-            act_ep = torch.stack(act_ep).to(device)
-            reward_ep = torch.tensor(np.array(reward_ep)).to(device)
-            z_ep = torch.stack(z_ep).to(device)
-            beta_ep = torch.stack(beta_ep).to(device)
+        act_ep = torch.stack(act_ep).to(device)
+        reward_ep = torch.tensor(np.array(reward_ep)).to(device)
+        z_ep = torch.stack(z_ep).to(device)
+        beta_ep = torch.stack(beta_ep).to(device)
 
-            loss, a_loss, n_ent_a, value_loss = \
-                    train_reinforce_batch(model_controller, optimizer_controller, act_ep, reward_ep, z_ep, beta_ep)
-            tmp_logs['controller']['loss'].append(loss)
-            tmp_logs['controller']['a_loss'].append(a_loss)
-            tmp_logs['controller']['n_ent_a'].append(n_ent_a)
-            tmp_logs['controller']['value_loss'].append(value_loss)
+        loss, a_loss, n_ent_a, value_loss = \
+                train_reinforce_batch(model_controller, optimizer_controller, act_ep, reward_ep, z_ep, beta_ep)
+        tmp_logs['controller']['loss'].append(loss)
+        tmp_logs['controller']['a_loss'].append(a_loss)
+        tmp_logs['controller']['n_ent_a'].append(n_ent_a)
+        tmp_logs['controller']['value_loss'].append(value_loss)
 
         
         if (i_episode+1) % args.print_freq == 0:
