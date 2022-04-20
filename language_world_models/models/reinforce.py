@@ -31,7 +31,7 @@ class REINFORCE(nn.Module):
     An agent that uses policy gradient (REINFORCE)
     Uses a 2-layer MLP policy.
     """
-    def __init__(self, z_dim, beta_dim, act_dim=4, hid_dim=20, gamma=0.9, ent_coeff=1e-2, val_coeff=1e-1, n_steps=None):
+    def __init__(self, z_dim, beta_dim, act_dim=4, hid_dim=1024, gamma=0.9, ent_coeff=1e-2, val_coeff=1e-1, n_steps=None):
         """Sets variables, and creates layers for networks
 
         Args:
