@@ -14,10 +14,11 @@ class BetaEncoder(nn.Module):
     """ LBF encoder """
     def __init__(self, m_dim, z_dim, beta_dim):
         super(BetaEncoder, self).__init__()
+        hidden_dim = 4096
 
-        self.fc1 = nn.Linear(m_dim+z_dim, 1024)
-        self.fc_mean = nn.Linear(1024, beta_dim)
-        self.fc_logstd = nn.Linear(1024, beta_dim)
+        self.fc1 = nn.Linear(m_dim+z_dim, hidden_dim)
+        self.fc_mean = nn.Linear(hidden_dim, beta_dim)
+        self.fc_logstd = nn.Linear(hidden_dim, beta_dim)
 
     def forward(self, m, z):
         # m : (B_SIZE, m_dim)
@@ -43,9 +44,10 @@ class ZSeqDecoder(nn.Module):
         self.beta_dim = beta_dim
         self.z_dim = z_dim
         self.pred_z_steps = pred_z_steps
+        hidden_dim = 4096
 
-        self.fc1 = nn.Linear(beta_dim, 1024)
-        self.fc2 = nn.Linear(1024, pred_z_steps*z_dim)
+        self.fc1 = nn.Linear(beta_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, pred_z_steps*z_dim)
 
     def forward(self, beta):
         # (B_SIZE, beta_dim)

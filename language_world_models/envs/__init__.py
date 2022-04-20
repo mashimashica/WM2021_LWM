@@ -20,14 +20,14 @@ def env_from_config(env_config, randomize_seed=True):
     return env_class(**env_kwargs)
 
 
-def create_ChoosePathGridDefaultEnv():
+def create_ChoosePathGridDefaultEnv(max_steps=30):
     env_config =  {
         "env_class": "ChoosePathGrid",
         "grid_size": 11,
-        "max_steps": 30,
+        "max_steps": max_steps,
         "respawn": False,
         "ghost_mode": True,
-        "reward_decay": False,
+        "reward_decay": True,
     }
 
     player_interface_config = {

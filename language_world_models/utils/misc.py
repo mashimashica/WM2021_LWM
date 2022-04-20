@@ -44,6 +44,7 @@ def get_many_head_frame(env, num):
 # 1エピソードの実行
 def play_one_episode_random(env):
     obs_listener_ep, obs_speaker_ep, reward_ep, done_ep = [], [], [], []
+    success = 0
 
     obs_agent = env.reset()
     obs_speaker = get_obs_speaker(env)
@@ -54,6 +55,9 @@ def play_one_episode_random(env):
         # ゲーム環境のステップ実行
         act = env.action_space.sample()
         obs_agent, reward, done, _ = env.step(act)
+        
+        if reward > 0:
+            success = 1
 
         # 画像用配列への変換
         obs_speaker = get_obs_speaker(env)
@@ -64,7 +68,7 @@ def play_one_episode_random(env):
         reward_ep.append(reward)
         done_ep.append(done)
  
-    return obs_listener_ep, obs_speaker_ep, reward_ep, done_ep
+    return obs_listener_ep, obs_speaker_ep, reward_ep, done_ep, success
 
 def _encode_obs(env, model_speaker, model_vae, model_lbf, obs_agent):
     obs_speaker = get_obs_speaker(env)
@@ -79,7 +83,7 @@ def _encode_obs(env, model_speaker, model_vae, model_lbf, obs_agent):
 
 # 1エピソードの実行
 @torch.no_grad()
-def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller):
+def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller, random_policy=False, max_steps=30):
     obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep = \
             [], [], [], [], [], [], []
     success = 0
@@ -87,11 +91,17 @@ def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
     obs_agent = env.reset()
     obs_listener, obs_speaker, m, z, beta = \
             _encode_obs(env, model_speaker, model_vae, model_lbf, obs_agent)
-    done = False
 
-    while not done:
+    for i in range(max_steps):
+        # 行動の決定
+        act = None
+        if random_policy == True:
+            act = env.action_space.sample()
+            act = torch.tensor(act)
+        else:
+            act = model_controller.act(z.unsqueeze(0), beta.unsqueeze(0))
+
         # ゲーム環境のステップ実行
-        act = model_controller.act(z.unsqueeze(0), beta.unsqueeze(0))
         obs_agent, reward, done, _ = env.step(act)
 
         if reward > 0:
@@ -108,6 +118,9 @@ def play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
         m_ep.append(m)
         z_ep.append(z)
         beta_ep.append(beta)
+
+        if done:
+            break
  
     return obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep, success
 

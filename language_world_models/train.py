@@ -96,7 +96,7 @@ def train(args):
     obs_listener_list, obs_speaker_list = [], []
     m_eps, z_eps = [], []
 
-    logs = {'entire' : {'success':[]}, 
+    logs = {'entire' : {'success':[], 'reward':[]}, 
             'speaker' : {'loss':[], 'n_entropy':[], 'recon_loss':[]}, 
             'vae' : {'loss':[], 'kl_loss':[], 'recon_loss':[]},
             'lbf' : {'loss':[], 'kl_loss':[], 'pred_loss':[]},
@@ -106,7 +106,7 @@ def train(args):
 
 
     # ゲーム環境のインスタンスの取得
-    env = create_ChoosePathGridDefaultEnv()
+    env = create_ChoosePathGridDefaultEnv(max_steps=args.explore_max_steps)
 
     # Speakerの定義
     model_speaker = Speaker(args.m_dim).to(device)
@@ -137,10 +137,15 @@ def train(args):
     # 訓練ループ
     for i_episode in range(args.num_episodes):
         # 1エピソードの実行
+        max_steps = 30
+        if i_episode < args.explore_episodes:
+            # 最初のいくつかのエピソードでは，制限時間を長くして訓練する
+            max_steps = args.explore_max_steps
         obs_listener_ep, obs_speaker_ep, act_ep, reward_ep, m_ep, z_ep, beta_ep, success = \
-                misc.play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller)
+                misc.play_one_episode(env, model_speaker, model_vae, model_lbf, model_controller, max_steps=max_steps)
 
         tmp_logs['entire']['success'].append(success)
+        tmp_logs['entire']['reward'].append(np.average(reward_ep))
 
         m_eps.append(m_ep)
         z_eps.append(z_ep)
@@ -149,7 +154,7 @@ def train(args):
         obs_speaker_list.extend(obs_speaker_ep)
 
         # バッチサイズ分のデータが集まったらパラメータの更新
-        if len(obs_listener_list) >= args.batch_size:
+        while len(obs_listener_list) >= args.batch_size:
             # Speaker の更新
             x = torch.stack(obs_speaker_list[:args.batch_size]).to(device)
             loss, n_entropy, recon_loss = train_speaker_batch(model_speaker, optimizer_speaker, x)
@@ -186,7 +191,7 @@ def train(args):
         
         # Controller の更新
         act_ep = torch.stack(act_ep).to(device)
-        reward_ep = torch.tensor(reward_ep).to(device)
+        reward_ep = torch.tensor(np.array(reward_ep)).to(device)
         z_ep = torch.stack(z_ep).to(device)
         beta_ep = torch.stack(beta_ep).to(device)
 
@@ -210,8 +215,8 @@ def train(args):
                     v.clear()
 
             # 全体について表示
-            print('\tEntire : Success Rate %lf' %
-                  (logs['entire']['success'][-1]))
+            print('\tEntire : Success Rate : %lf, Reward : %lf' %
+                  (logs['entire']['success'][-1], logs['entire']['reward'][-1]))
 
             # Speaker について表示
             print('\tSpeaker : Loss: %lf  (Negative entropy : %lf,  Reconstruction loss : %lf)' %
